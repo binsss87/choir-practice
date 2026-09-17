@@ -350,6 +350,7 @@ const SONG_TRACKS=[
 const songAudios={};SONG_TRACKS.forEach(t=>songAudios[t.id]=document.getElementById("song-"+t.id));
 
 const MOBILE_MIX_SOURCES={
+ "full":"assets/audio/mobile_mix/full/full_mobile.mp3",
  "soprano|altoHigh":"assets/audio/mobile_mix/pairs/soprano_altoHigh.mp3",
  "soprano|altoLow":"assets/audio/mobile_mix/pairs/soprano_altoLow.mp3",
  "soprano|men":"assets/audio/mobile_mix/pairs/soprano_men.mp3",
@@ -373,7 +374,7 @@ Object.entries(MOBILE_MIX_SOURCES).forEach(([key,src])=>{
 let mobileSongCurrentAudio=null,mobileSongCurrentKey=null;
 function mobileSongSource(){
  const parts=PART_ORDER.filter(p=>selectedScoreParts.has(p));
- if(parts.length>=4)return ["full",songAudios.full];
+ if(parts.length>=4)return ["full",mobileMixAudios.full||songAudios.full];
  if(parts.length===1)return [parts[0],songAudios[parts[0]]];
  const key=parts.join("|");
  return [key,mobileMixAudios[key]||null];
