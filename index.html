@@ -71,9 +71,11 @@ h1{margin:0;font-size:clamp(22px,2.8vw,36px);letter-spacing:-.04em;transform:rot
 .score-stage:before{left:0;background:linear-gradient(90deg,#fffdf5 0,rgba(255,253,245,.9) 42%,transparent)}
 .score-stage:after{right:0;background:linear-gradient(270deg,#fffdf5 0,rgba(255,253,245,.9) 42%,transparent)}
 .staff-svg{position:absolute;left:0;top:0;width:auto;height:auto;max-width:none;overflow:visible}.score-world{will-change:transform}
-.playhead{position:absolute;z-index:12;top:22px;bottom:24px;left:42%;width:3px;background:var(--red);transform:rotate(.3deg);box-shadow:0 0 0 1px rgba(255,255,255,.8)}
+.playhead{position:absolute;z-index:15;top:22px;bottom:24px;left:var(--playhead-left,42%);width:3px;background:var(--red);transform:rotate(.3deg);box-shadow:0 0 0 1px rgba(255,255,255,.8);cursor:ew-resize;touch-action:none}
 .playhead:before{content:"";position:absolute;top:-3px;left:50%;width:12px;height:12px;border-radius:50%;background:var(--red);transform:translateX(-50%)}
-.measure-tag{position:absolute;z-index:13;left:42%;top:12px;transform:translateX(-50%) rotate(-1deg);background:#fff2a8;border:2px solid var(--ink);border-radius:9px 12px 9px 12px;padding:5px 9px;font-size:11px;font-weight:900}
+.playhead:after{content:"";position:absolute;top:-12px;bottom:-12px;left:-20px;width:43px;background:transparent}
+.playhead.dragging{width:4px;box-shadow:0 0 0 2px rgba(255,255,255,.92),0 0 0 4px rgba(229,92,103,.22)}
+.measure-tag{position:absolute;z-index:16;left:var(--playhead-left,42%);top:12px;transform:translateX(-50%) rotate(-1deg);background:#fff2a8;border:2px solid var(--ink);border-radius:9px 12px 9px 12px;padding:5px 9px;font-size:11px;font-weight:900;pointer-events:none}
 .hint{position:absolute;z-index:14;left:14px;bottom:11px;background:rgba(255,253,245,.9);border:1.5px solid var(--ink);border-radius:9px;padding:5px 8px;font-size:10px;color:var(--ink2)}
 .sync{position:absolute;z-index:14;right:13px;bottom:10px;display:flex;align-items:center;gap:6px;background:rgba(255,253,245,.92);border:1.5px solid var(--ink);border-radius:12px;padding:5px 7px;font-size:10px;color:var(--ink2)}
 .sync input{width:110px;accent-color:var(--red)}
@@ -173,7 +175,7 @@ kbd{font:inherit;border:1px solid var(--ink);border-radius:5px;padding:1px 5px;b
   .tabs{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px;width:100%}
   .tab{transform:none!important;padding:9px 2px;border-width:1.5px;font-size:10px;white-space:nowrap}
   .score-stage{border-width:1.5px;border-radius:11px}
-  .playhead,.measure-tag{left:42%!important}
+  .playhead,.measure-tag{left:var(--playhead-left,42%)}
   .measure-tag{top:7px;font-size:10px;padding:4px 7px}
   .score-row-label{left:5px;min-width:68px;font-size:9.5px;padding:4px 5px}
   .sync{right:5px;bottom:5px;font-size:8px;padding:4px 5px}
@@ -246,7 +248,7 @@ button{pointer-events:auto;-webkit-tap-highlight-color:transparent}
     <div class="score-stage">
       <svg id="staffSvg" class="staff-svg" viewBox="0 0 1400 560" preserveAspectRatio="none"><g id="scoreWorld" class="score-world"></g></svg>
       <div id="scoreLabels" class="score-labels"></div>
-      <div class="playhead"></div>
+      <div id="scorePlayhead" class="playhead" role="slider" tabindex="0" aria-label="악보 재생 위치" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" title="좌우로 드래그해서 재생 위치 이동"></div>
       <div id="measureTag" class="measure-tag">전주</div>
       
       <div class="sync">악보 싱크 <input id="syncOffset" type="range" min="-5" max="5" step=".02" value="0"><b id="syncVal">0.00s</b><button type="button" id="syncReset" class="sync-reset">초기화</button></div>
@@ -638,6 +640,112 @@ function qToTime(q){
  const lead=mode==="song"?SONG_SCORE_LEAD:MR_SCORE_LEAD;
  return clamp(lead+q*SEC_PER_Q-BASE_SCORE_SYNC-syncOffset,0,modeDuration());
 }
+
+function measureLabelAtQ(q){
+ let mi=0;
+ for(let i=0;i<DATA.measureStarts.length;i++){
+   if(DATA.measureStarts[i].q<=q)mi=i;
+   else break;
+ }
+ const m=DATA.measureStarts[mi];
+ return m.label==="전주"?"전주":m.label+"마디"+(m.pass===2?" · 반복":"");
+}
+
+let scoreDrag=null;
+
+function beginScoreDrag(e){
+ const stage=document.querySelector(".score-stage");
+ const playhead=document.getElementById("scorePlayhead");
+ if(!stage||!playhead)return;
+
+ e.preventDefault();
+ const rect=stage.getBoundingClientRect();
+ const startQ=currentQ();
+ const startTime=globalTime();
+ const wasPlaying=playing;
+ if(wasPlaying)pauseEverything();
+
+ scoreDrag={
+   pointerId:e.pointerId,
+   stage,
+   playhead,
+   rect,
+   startQ,
+   startTime,
+   wasPlaying,
+   targetQ:startQ
+ };
+
+ playhead.classList.add("dragging");
+ try{playhead.setPointerCapture(e.pointerId)}catch(err){}
+ updateScoreDrag(e);
+}
+
+function updateScoreDrag(e){
+ if(!scoreDrag||e.pointerId!==scoreDrag.pointerId)return;
+ e.preventDefault();
+
+ const {stage,rect,startQ}=scoreDrag;
+ const x=clamp(e.clientX-rect.left,12,Math.max(12,rect.width-12));
+ const fixedX=rect.width*.42;
+ const deltaQ=(x-fixedX)/SCORE_PXQ;
+ const q=clamp(startQ+deltaQ,0,DATA.totalQ);
+ const t=qToTime(q);
+
+ scoreDrag.targetQ=q;
+ stage.style.setProperty("--playhead-left",x+"px");
+
+ const tag=document.getElementById("measureTag");
+ tag.textContent=measureLabelAtQ(q);
+
+ const d=modeDuration();
+ document.getElementById("curTime").textContent=fmt(t);
+ document.getElementById("seek").value=d?t/d*100:0;
+
+ const ph=document.getElementById("scorePlayhead");
+ ph.setAttribute("aria-valuenow",String(Math.round((q/DATA.totalQ)*100)));
+ ph.setAttribute("aria-valuetext",fmt(t)+" · "+measureLabelAtQ(q));
+}
+
+async function finishScoreDrag(e,cancelled=false){
+ if(!scoreDrag||e.pointerId!==scoreDrag.pointerId)return;
+ e.preventDefault();
+
+ const d=scoreDrag;
+ const q=cancelled?d.startQ:d.targetQ;
+ const t=cancelled?d.startTime:qToTime(q);
+
+ d.stage.style.removeProperty("--playhead-left");
+ d.playhead.classList.remove("dragging");
+ try{d.playhead.releasePointerCapture(e.pointerId)}catch(err){}
+ scoreDrag=null;
+
+ setGlobalTime(t);
+
+ if(d.wasPlaying){
+   try{await playCurrent()}catch(err){}
+ }
+}
+
+function initScoreDrag(){
+ const ph=document.getElementById("scorePlayhead");
+ if(!ph)return;
+ ph.addEventListener("pointerdown",beginScoreDrag);
+ ph.addEventListener("pointermove",updateScoreDrag);
+ ph.addEventListener("pointerup",e=>finishScoreDrag(e,false));
+ ph.addEventListener("pointercancel",e=>finishScoreDrag(e,true));
+
+ // 키보드 대체 조작: ←/→ 1박, Shift+←/→ 4박
+ ph.addEventListener("keydown",e=>{
+   if(e.key!=="ArrowLeft"&&e.key!=="ArrowRight")return;
+   e.preventDefault();
+   const step=e.shiftKey?4:1;
+   const dir=e.key==="ArrowRight"?1:-1;
+   const q=clamp(currentQ()+dir*step,0,DATA.totalQ);
+   setGlobalTime(qToTime(q));
+ });
+}
+
 function svgEl(tag,attrs){const e=document.createElementNS(NS,tag);Object.entries(attrs||{}).forEach(([k,v])=>e.setAttribute(k,v));return e}
 function setStatus(msg,error){const e=document.getElementById("audioStatus");e.textContent=msg;e.classList.toggle("error",!!error)}
 
@@ -915,11 +1023,16 @@ function renderScore(){
 }
 function updateScorePosition(){
  const q=currentQ(),stage=document.querySelector(".score-stage");
- const playheadX=(stage.clientWidth||window.innerWidth||390)*0.42;
- document.getElementById("scoreWorld").setAttribute("transform","translate("+(playheadX-q*SCORE_PXQ)+",0)");
- let mi=0; for(let i=0;i<DATA.measureStarts.length;i++){ if(DATA.measureStarts[i].q<=q) mi=i; else break; }
- const m=DATA.measureStarts[mi];
- document.getElementById("measureTag").textContent=m.label==="전주"?"전주":m.label+"마디"+(m.pass===2?" · 반복":"");
+ if(!scoreDrag){
+   const playheadX=(stage.clientWidth||window.innerWidth||390)*0.42;
+   document.getElementById("scoreWorld").setAttribute("transform","translate("+(playheadX-q*SCORE_PXQ)+",0)");
+   document.getElementById("measureTag").textContent=measureLabelAtQ(q);
+ }
+ const ph=document.getElementById("scorePlayhead");
+ if(ph&&!scoreDrag){
+   ph.setAttribute("aria-valuenow",String(Math.round((q/DATA.totalQ)*100)));
+   ph.setAttribute("aria-valuetext",fmt(qToTime(q))+" · "+measureLabelAtQ(q));
+ }
  selectedParts().forEach(part=>{
    const arr=noteEls[part]||[];
    let ai=-1;
@@ -1386,7 +1499,7 @@ function init(){
  document.getElementById("scoreModal").addEventListener("click",e=>{if(e.target.id==="scoreModal")e.currentTarget.classList.remove("open")});
  let resizeTimer=null;
  window.addEventListener("resize",()=>{if(!scoreReady)return;clearTimeout(resizeTimer);resizeTimer=setTimeout(renderScore,120)});
- setInterval(()=>{syncSongTracks();syncMrTracks()},isMobileAudioMode()?250:300);loopDisplay();updateAll();tick();
+ setInterval(()=>{syncSongTracks();syncMrTracks()},isMobileAudioMode()?250:300);initScoreDrag();loopDisplay();updateAll();tick();
 }
 init();
 </script>
