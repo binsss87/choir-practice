@@ -77,6 +77,8 @@ h1{margin:0;font-size:clamp(22px,2.8vw,36px);letter-spacing:-.04em;transform:rot
 .hint{position:absolute;z-index:14;left:14px;bottom:11px;background:rgba(255,253,245,.9);border:1.5px solid var(--ink);border-radius:9px;padding:5px 8px;font-size:10px;color:var(--ink2)}
 .sync{position:absolute;z-index:14;right:13px;bottom:10px;display:flex;align-items:center;gap:6px;background:rgba(255,253,245,.92);border:1.5px solid var(--ink);border-radius:12px;padding:5px 7px;font-size:10px;color:var(--ink2)}
 .sync input{width:110px;accent-color:var(--red)}
+.sync-reset{border:1.5px solid var(--ink);background:#fffdf5;color:var(--ink);border-radius:7px;padding:3px 6px;font-size:9px;font-weight:900;line-height:1.1;box-shadow:1px 1px 0 rgba(37,49,58,.12)}
+.sync-reset:active{transform:translate(1px,1px);box-shadow:none}
 
 /* 노래방식 큰 가사 */
 .lyrics{margin-top:15px;padding:20px 18px;text-align:center;min-height:164px}
@@ -175,7 +177,8 @@ kbd{font:inherit;border:1px solid var(--ink);border-radius:5px;padding:1px 5px;b
   .measure-tag{top:7px;font-size:10px;padding:4px 7px}
   .score-row-label{left:5px;min-width:68px;font-size:9.5px;padding:4px 5px}
   .sync{right:5px;bottom:5px;font-size:8px;padding:4px 5px}
-  .sync input{width:78px}
+  .sync input{width:68px}
+  .sync-reset{font-size:8px;padding:3px 5px}
   .main-grid{display:flex;flex-direction:column;gap:9px;margin-top:9px}
   .transport{order:1;padding:12px 10px}
   .mixer{order:2;padding:12px 10px}
@@ -244,7 +247,7 @@ button{pointer-events:auto;-webkit-tap-highlight-color:transparent}
       <div class="playhead"></div>
       <div id="measureTag" class="measure-tag">전주</div>
       
-      <div class="sync">악보 싱크 <input id="syncOffset" type="range" min="-5" max="5" step=".02" value="0"><b id="syncVal">0.00s</b></div>
+      <div class="sync">악보 싱크 <input id="syncOffset" type="range" min="-5" max="5" step=".02" value="0"><b id="syncVal">0.00s</b><button type="button" id="syncReset" class="sync-reset">초기화</button></div>
     </div>
   </section>
 
@@ -343,6 +346,59 @@ const SONG_TRACKS=[
  {id:"men",name:"Men",sub:"Male",color:"#5e9fc6"}
 ];
 const songAudios={};SONG_TRACKS.forEach(t=>songAudios[t.id]=document.getElementById("song-"+t.id));
+
+const MOBILE_MIX_SOURCES={
+ "soprano|altoHigh":"assets/audio/mobile_mix/pairs/soprano_altoHigh.mp3",
+ "soprano|altoLow":"assets/audio/mobile_mix/pairs/soprano_altoLow.mp3",
+ "soprano|men":"assets/audio/mobile_mix/pairs/soprano_men.mp3",
+ "altoHigh|altoLow":"assets/audio/mobile_mix/pairs/altoHigh_altoLow.mp3",
+ "altoHigh|men":"assets/audio/mobile_mix/pairs/altoHigh_men.mp3",
+ "altoLow|men":"assets/audio/mobile_mix/pairs/altoLow_men.mp3",
+ "soprano|altoHigh|altoLow":"assets/audio/mobile_mix/triples/soprano_altoHigh_altoLow.mp3",
+ "soprano|altoHigh|men":"assets/audio/mobile_mix/triples/soprano_altoHigh_men.mp3",
+ "soprano|altoLow|men":"assets/audio/mobile_mix/triples/soprano_altoLow_men.mp3",
+ "altoHigh|altoLow|men":"assets/audio/mobile_mix/triples/altoHigh_altoLow_men.mp3"
+};
+const mobileMixAudios={};
+Object.entries(MOBILE_MIX_SOURCES).forEach(([key,src])=>{
+ const a=new Audio(src);
+ a.preload="metadata";
+ a.playsInline=true;
+ a.setAttribute("playsinline","");
+ a.setAttribute("webkit-playsinline","");
+ mobileMixAudios[key]=a;
+});
+let mobileSongCurrentAudio=null,mobileSongCurrentKey=null;
+function mobileSongSource(){
+ const parts=PART_ORDER.filter(p=>selectedScoreParts.has(p));
+ if(parts.length>=4)return ["full",songAudios.full];
+ if(parts.length===1)return [parts[0],songAudios[parts[0]]];
+ const key=parts.join("|");
+ return [key,mobileMixAudios[key]||null];
+}
+function mobileSongVolume(){
+ const parts=PART_ORDER.filter(p=>selectedScoreParts.has(p));
+ if(parts.length>=4&&!songAudios.full.muted){
+   const s=document.getElementById("v-full");
+   return clamp(s?+s.value/100:.85,0,1);
+ }
+ if(parts.length===1){
+   const s=document.getElementById("v-"+parts[0]);
+   return clamp(s?+s.value/100:1,0,1);
+ }
+ if(parts.length>1){
+   const vals=parts.map(p=>{
+     const s=document.getElementById("v-"+p);
+     return s?+s.value/100:1;
+   });
+   return clamp(vals.reduce((a,b)=>a+b,0)/vals.length,0,1);
+ }
+ return .85;
+}
+function setMobileSongVolume(a){
+ if(a)a.volume=mobileSongVolume();
+}
+
 const mrAudios={backing:document.getElementById("mr-backing"),all:document.getElementById("mr-all"),soprano:document.getElementById("mr-soprano"),alto:document.getElementById("mr-alto"),men:document.getElementById("mr-men")};
 
 const PART_ORDER=["soprano","altoHigh","altoLow","men"];
@@ -405,8 +461,8 @@ function activeMrEntries(){
  return Object.entries(mrAudios).filter(([id,a])=>!a.muted);
 }
 function mobileMasterSong(){
- const active=activeSongEntries();
- return active.length?active[0]:["full",songAudios.full];
+ if(mobileSongCurrentAudio)return [mobileSongCurrentKey||"mobile",mobileSongCurrentAudio];
+ return mobileSongSource();
 }
 function mobileMasterMr(){
  const active=activeMrEntries();
@@ -443,34 +499,23 @@ function softSyncAudio(a,target,baseRate){
  setAudioRate(a,baseRate*(1-correction));
 }
 function hardSyncMobileTracks(){
- if(!isMobileAudioMode()||!playing)return;
+ if(!isMobileAudioMode()||!playing||mode==="song")return;
  const baseRate=mobileBaseRate();
- if(mode==="song"){
-   const active=activeSongEntries();
-   if(active.length<2)return;
-   const master=active[0][1],t=master.currentTime||0;
-   setAudioRate(master,baseRate);
-   active.slice(1).forEach(([id,a])=>{
-     try{a.currentTime=t}catch(e){}
-     setAudioRate(a,baseRate);
-   });
- }else{
-   const active=activeMrEntries();
-   if(active.length<2)return;
-   const [masterId,master]=mobileMasterMr();
-   const transport=(master.currentTime||0)-MR_OFFSETS[masterId];
-   setAudioRate(master,baseRate);
-   active.forEach(([id,a])=>{
-     if(id===masterId)return;
-     const target=clamp(transport+MR_OFFSETS[id],0,isFinite(a.duration)?a.duration:9999);
-     try{a.currentTime=target}catch(e){}
-     setAudioRate(a,baseRate);
-   });
- }
+ const active=activeMrEntries();
+ if(active.length<2)return;
+ const [masterId,master]=mobileMasterMr();
+ const transport=(master.currentTime||0)-MR_OFFSETS[masterId];
+ setAudioRate(master,baseRate);
+ active.forEach(([id,a])=>{
+   if(id===masterId)return;
+   const target=clamp(transport+MR_OFFSETS[id],0,isFinite(a.duration)?a.duration:9999);
+   try{a.currentTime=target}catch(e){}
+   setAudioRate(a,baseRate);
+ });
 }
 let mobileSyncBurstTimers=[];
 function scheduleMobileSyncBurst(){
- if(!isMobileAudioMode())return;
+ if(!isMobileAudioMode()||mode==="song")return;
  mobileSyncBurstTimers.forEach(clearTimeout);
  mobileSyncBurstTimers=[
    setTimeout(hardSyncMobileTracks,180),
@@ -484,6 +529,12 @@ function effectiveMixGain(count){
 }
 function applyEffectiveVolumes(){
  if(mode==="song"){
+   if(isMobileAudioMode()){
+     const [key,a]=mobileSongSource();
+     setMobileSongVolume(a);
+     if(mobileSongCurrentAudio&&mobileSongCurrentAudio!==a)setMobileSongVolume(mobileSongCurrentAudio);
+     return;
+   }
    const active=activeSongEntries(),gain=effectiveMixGain(active.length);
    Object.entries(songAudios).forEach(([id,a])=>{
      const slider=document.getElementById("v-"+id);
@@ -507,34 +558,44 @@ async function reconcileMobilePlayback(){
  applyEffectiveVolumes();
  if(!playing)return;
  const rate=+document.getElementById("speed").value;
- // 음소거 상태가 바뀐 직후 새 트랙의 오래된 currentTime을 기준으로 삼지 않는다.
- // 직전 UI 재생 위치를 공통 transport 위치로 사용한다.
  const seek=document.getElementById("seek");
  const now=clamp(modeDuration()*(+seek.value||0)/100,0,modeDuration());
- const activeSet=new Set((mode==="song"?activeSongEntries():activeMrEntries()).map(([id])=>id));
- const entries=mode==="song"?Object.entries(songAudios):Object.entries(mrAudios);
 
- // 선택 해제된 트랙은 완전히 정지시켜 모바일 디코더 부담을 줄인다.
- entries.forEach(([id,a])=>{
-   if(!activeSet.has(id))a.pause();
- });
+ if(mode==="song"){
+   const [key,a]=mobileSongSource();
+   if(!a){
+     setStatus("모바일 조합 음원 파일을 찾지 못했습니다.",true);
+     return;
+   }
+   Object.values(songAudios).forEach(x=>{if(x!==a)x.pause()});
+   Object.values(mobileMixAudios).forEach(x=>{if(x!==a)x.pause()});
+   mobileSongCurrentKey=key;
+   mobileSongCurrentAudio=a;
+   a.preload="auto";
+   setAudioRate(a,rate);
+   setMobileSongVolume(a);
+   if(Math.abs((a.currentTime||0)-now)>.08){
+     try{a.currentTime=now}catch(e){}
+   }
+   if(a.paused){
+     try{const p=a.play();if(p&&p.catch)p.catch(()=>{})}catch(e){}
+   }
+   return;
+ }
 
- // 새로 선택된 트랙만 현재 위치부터 재생한다.
+ const activeSet=new Set(activeMrEntries().map(([id])=>id));
+ const entries=Object.entries(mrAudios);
+ entries.forEach(([id,a])=>{if(!activeSet.has(id))a.pause()});
  for(const [id,a] of entries){
    if(!activeSet.has(id))continue;
-   a.playbackRate=rate;
-   const target=mode==="song"
-     ? now
-     : clamp(now+MR_OFFSETS[id],0,isFinite(a.duration)?a.duration:9999);
+   setAudioRate(a,rate);
+   const target=clamp(now+MR_OFFSETS[id],0,isFinite(a.duration)?a.duration:9999);
    if(Math.abs((a.currentTime||0)-target)>.25){
      try{a.currentTime=target}catch(e){}
    }
    a.preload="auto";
    if(a.paused){
-     try{
-       const p=a.play();
-       if(p&&p.catch)p.catch(()=>{});
-     }catch(e){}
+     try{const p=a.play();if(p&&p.catch)p.catch(()=>{})}catch(e){}
    }
  }
  scheduleMobileSyncBurst();
@@ -549,7 +610,7 @@ function globalTime(){
  }
  if(mode==="song"){
    const [id,a]=mobileMasterSong();
-   return clamp(a.currentTime||0,0,SONG_DURATION);
+   return clamp(a?(a.currentTime||0):0,0,SONG_DURATION);
  }
  const [id,a]=mobileMasterMr();
  return clamp((a.currentTime||0)-MR_OFFSETS[id],0,MR_DURATION);
@@ -884,12 +945,20 @@ function updateAll(){
  const t=globalTime(),d=modeDuration();document.getElementById("curTime").textContent=fmt(t);document.getElementById("duration").textContent=fmt(d);
  document.getElementById("seek").value=d?t/d*100:0;updateScorePosition();
 }
-function pauseEverything(){Object.values(songAudios).forEach(a=>a.pause());Object.values(mrAudios).forEach(a=>a.pause())}
+function pauseEverything(){Object.values(songAudios).forEach(a=>a.pause());Object.values(mobileMixAudios).forEach(a=>a.pause());Object.values(mrAudios).forEach(a=>a.pause())}
 function setGlobalTime(t){
  t=clamp(t,0,modeDuration());
  if(mode==="song"){
-   const entries=isMobileAudioMode()?activeSongEntries():Object.entries(songAudios);
-   entries.forEach(([id,a])=>{try{a.currentTime=t}catch(e){}});
+   if(isMobileAudioMode()){
+     const [key,a]=mobileSongSource();
+     if(a){
+       try{a.currentTime=t}catch(e){}
+       mobileSongCurrentKey=key;
+       mobileSongCurrentAudio=a;
+     }
+   }else{
+     Object.entries(songAudios).forEach(([id,a])=>{try{a.currentTime=t}catch(e){}});
+   }
  }else{
    const entries=isMobileAudioMode()?activeMrEntries():Object.entries(mrAudios);
    entries.forEach(([id,a])=>{
@@ -901,7 +970,7 @@ function setGlobalTime(t){
 }
 function prepareAudio(){
  if(audioUnlocked)return;
- const all=[...Object.values(songAudios),...Object.values(mrAudios)];
+ const all=[...Object.values(songAudios),...Object.values(mobileMixAudios),...Object.values(mrAudios)];
  all.forEach(a=>{
    a.playsInline=true;
    a.preload=isMobileAudioMode()?"metadata":"auto";
@@ -917,15 +986,30 @@ async function playCurrent(){
  applyEffectiveVolumes();
  if(mode==="song"){
    const t=globalTime();
-   const entries=isMobileAudioMode()?activeSongEntries():Object.entries(songAudios);
-   entries.forEach(([id,a])=>{
-     if(isMobileAudioMode())a.preload="auto";
+   if(isMobileAudioMode()){
+     const [key,a]=mobileSongSource();
+     if(!a){
+       setStatus("모바일 조합 음원 파일을 찾지 못했습니다.",true);
+       return;
+     }
+     mobileSongCurrentKey=key;
+     mobileSongCurrentAudio=a;
+     a.preload="auto";
      setAudioRate(a,rate);
-     if(Math.abs((a.currentTime||0)-t)>(isMobileAudioMode()?.12:.08)){
+     setMobileSongVolume(a);
+     if(Math.abs((a.currentTime||0)-t)>.08){
        try{a.currentTime=t}catch(e){}
      }
      try{const p=a.play();if(p&&p.then)promises.push(p)}catch(e){}
-   });
+   }else{
+     Object.entries(songAudios).forEach(([id,a])=>{
+       setAudioRate(a,rate);
+       if(Math.abs((a.currentTime||0)-t)>.08){
+         try{a.currentTime=t}catch(e){}
+       }
+       try{const p=a.play();if(p&&p.then)promises.push(p)}catch(e){}
+     });
+   }
  }else{
    const t=globalTime();
    const entries=isMobileAudioMode()?activeMrEntries():Object.entries(mrAudios);
@@ -954,7 +1038,7 @@ async function playCurrent(){
 function pauseCurrent(){
  pauseEverything();
  const baseRate=mobileBaseRate();
- [...Object.values(songAudios),...Object.values(mrAudios)].forEach(a=>setAudioRate(a,baseRate));
+ [...Object.values(songAudios),...Object.values(mobileMixAudios),...Object.values(mrAudios)].forEach(a=>setAudioRate(a,baseRate));
  playing=false;
  document.getElementById("playBtn").textContent="▶ 재생";
  setStatus("일시정지",false);
@@ -962,14 +1046,7 @@ function pauseCurrent(){
 function toggle(){playing?pauseCurrent():playCurrent()}
 function syncSongTracks(){
  if(!playing||mode!=="song")return;
- if(isMobileAudioMode()){
-   const active=activeSongEntries();
-   if(active.length<2)return;
-   const baseRate=mobileBaseRate(),master=active[0][1],t=master.currentTime||0;
-   setAudioRate(master,baseRate);
-   active.slice(1).forEach(([id,a])=>softSyncAudio(a,t,baseRate));
-   return;
- }
+ if(isMobileAudioMode())return; // 모바일은 단일 프리믹스 음원 하나만 재생
  const t=songAudios.full.currentTime;
  SONG_TRACKS.slice(1).forEach(x=>{
    const a=songAudios[x.id];
@@ -1312,12 +1389,13 @@ function init(){
  }));
  document.querySelectorAll(".preset").forEach(b=>b.addEventListener("click",()=>toggleSongQuick(b.dataset.preset)));
  document.querySelectorAll(".mr-toggle").forEach(b=>b.addEventListener("click",()=>toggleMrFromButton(b.dataset.mrToggle)));
-   [...Object.values(songAudios),...Object.values(mrAudios)].forEach(a=>a.addEventListener("error",()=>setStatus("오디오 파일을 찾지 못했습니다. ZIP을 완전히 압축 해제해 주세요.",true)));
+   [...Object.values(songAudios),...Object.values(mobileMixAudios),...Object.values(mrAudios)].forEach(a=>a.addEventListener("error",()=>setStatus("오디오 파일을 찾지 못했습니다. 모바일 조합 음원 폴더까지 업로드됐는지 확인해 주세요.",true)));
  document.getElementById("playBtn").addEventListener("click",toggle);
  document.getElementById("back5").addEventListener("click",()=>setGlobalTime(globalTime()-5));document.getElementById("fwd5").addEventListener("click",()=>setGlobalTime(globalTime()+5));
  document.getElementById("seek").addEventListener("input",e=>setGlobalTime(modeDuration()*e.target.value/100));
- document.getElementById("speed").addEventListener("change",e=>{[...Object.values(songAudios),...Object.values(mrAudios)].forEach(a=>a.playbackRate=+e.target.value)});
+ document.getElementById("speed").addEventListener("change",e=>{[...Object.values(songAudios),...Object.values(mobileMixAudios),...Object.values(mrAudios)].forEach(a=>setAudioRate(a,+e.target.value))});
  document.getElementById("syncOffset").addEventListener("input",e=>{syncOffset=+e.target.value;document.getElementById("syncVal").textContent=(syncOffset>=0?"+":"")+syncOffset.toFixed(2)+"s";updateAll()});
+ document.getElementById("syncReset").addEventListener("click",()=>{syncOffset=0;const s=document.getElementById("syncOffset");s.value=0;document.getElementById("syncVal").textContent="0.00s";updateAll()});
  document.getElementById("setA").addEventListener("click",()=>{A=globalTime();if(B!==null&&B<=A)B=null;loopDisplay()});
  document.getElementById("setB").addEventListener("click",()=>{B=globalTime();if(A===null)A=Math.max(0,B-10);if(B<=A)B=Math.min(modeDuration(),A+1);loopDisplay()});
  document.getElementById("goA").addEventListener("click",()=>{if(A!==null)setGlobalTime(A)});
