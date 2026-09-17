@@ -50,7 +50,7 @@ h1{margin:0;font-size:clamp(22px,2.8vw,36px);letter-spacing:-.04em;transform:rot
 .score-head{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:9px}
 .score-title{display:flex;align-items:baseline;gap:10px}.score-title b{font-size:18px}.score-title span{font-size:11px;color:var(--ink2)}
 .tabs{display:flex;gap:7px;flex-wrap:wrap}
-.tab{border:2px solid var(--ink);background:#fffdf5;color:var(--ink2);padding:7px 11px;border-radius:16px 11px 17px 12px;font-size:11px;font-weight:900;box-shadow:2px 2px 0 rgba(37,49,58,.12)}
+.tab{border:2px solid var(--ink);background:#fffdf5;color:var(--ink2);padding:7px 11px;border-radius:16px 11px 17px 12px;font-size:12px;font-weight:900;box-shadow:2px 2px 0 rgba(37,49,58,.12)}
 .tab:nth-child(2n){transform:rotate(.7deg)}.tab:nth-child(2n+1){transform:rotate(-.5deg)}
 .tab.active{color:#203037;box-shadow:2px 3px 0 rgba(37,49,58,.18)}
 .tab[data-part="soprano"].active{background:#f3b3c5}
@@ -59,8 +59,8 @@ h1{margin:0;font-size:clamp(22px,2.8vw,36px);letter-spacing:-.04em;transform:rot
 .tab[data-part="men"].active{background:#9fcbe4}
 .tab[data-part="all"].active{background:#bfe7d4;color:#194536}
 .score-labels{position:absolute;inset:0;z-index:16;pointer-events:none}
-.score-row-label{position:absolute;left:11px;min-width:82px;text-align:center;padding:4px 7px;border:1.5px solid var(--ink);
- border-radius:10px 7px 11px 8px;background:#fffdf5;font-size:10px;font-weight:900;box-shadow:1px 2px 0 rgba(37,49,58,.12)}
+.score-row-label{position:absolute;left:11px;min-width:92px;text-align:center;padding:5px 8px;border:1.5px solid var(--ink);
+ border-radius:10px 7px 11px 8px;background:#fffdf5;font-size:12px;font-weight:900;box-shadow:1px 2px 0 rgba(37,49,58,.12)}
 .score-row-label.soprano{background:#f8cfda}.score-row-label.altoHigh{background:#f7e2a9}
 .score-row-label.altoLow{background:#ded0ee}.score-row-label.men{background:#c5e1f0}
 .score-stage{position:relative;height:365px;min-height:285px;overflow:hidden;transition:height .18s ease;background:
@@ -70,10 +70,10 @@ h1{margin:0;font-size:clamp(22px,2.8vw,36px);letter-spacing:-.04em;transform:rot
 .score-stage:before,.score-stage:after{content:"";position:absolute;top:0;bottom:0;width:14%;z-index:8;pointer-events:none}
 .score-stage:before{left:0;background:linear-gradient(90deg,#fffdf5 0,rgba(255,253,245,.9) 42%,transparent)}
 .score-stage:after{right:0;background:linear-gradient(270deg,#fffdf5 0,rgba(255,253,245,.9) 42%,transparent)}
-.staff-svg{position:absolute;inset:0;width:100%;height:100%}.score-world{will-change:transform}
+.staff-svg{position:absolute;left:0;top:0;width:auto;height:auto;max-width:none;overflow:visible}.score-world{will-change:transform}
 .playhead{position:absolute;z-index:12;top:22px;bottom:24px;left:42%;width:3px;background:var(--red);transform:rotate(.3deg);box-shadow:0 0 0 1px rgba(255,255,255,.8)}
 .playhead:before{content:"";position:absolute;top:-3px;left:50%;width:12px;height:12px;border-radius:50%;background:var(--red);transform:translateX(-50%)}
-.measure-tag{position:absolute;z-index:13;left:42%;top:12px;transform:translateX(-50%) rotate(-1deg);background:#fff2a8;border:2px solid var(--ink);border-radius:9px 12px 9px 12px;padding:4px 8px;font-size:10px;font-weight:900}
+.measure-tag{position:absolute;z-index:13;left:42%;top:12px;transform:translateX(-50%) rotate(-1deg);background:#fff2a8;border:2px solid var(--ink);border-radius:9px 12px 9px 12px;padding:5px 9px;font-size:11px;font-weight:900}
 .hint{position:absolute;z-index:14;left:14px;bottom:11px;background:rgba(255,253,245,.9);border:1.5px solid var(--ink);border-radius:9px;padding:5px 8px;font-size:10px;color:var(--ink2)}
 .sync{position:absolute;z-index:14;right:13px;bottom:10px;display:flex;align-items:center;gap:6px;background:rgba(255,253,245,.92);border:1.5px solid var(--ink);border-radius:12px;padding:5px 7px;font-size:10px;color:var(--ink2)}
 .sync input{width:110px;accent-color:var(--red)}
@@ -169,11 +169,11 @@ kbd{font:inherit;border:1px solid var(--ink);border-radius:5px;padding:1px 5px;b
   .score-head{display:block;margin-bottom:8px}
   .score-title{margin-bottom:7px}.score-title b{font-size:15px}
   .tabs{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px;width:100%}
-  .tab{transform:none!important;padding:8px 2px;border-width:1.5px;font-size:9px;white-space:nowrap}
+  .tab{transform:none!important;padding:9px 2px;border-width:1.5px;font-size:10px;white-space:nowrap}
   .score-stage{border-width:1.5px;border-radius:11px}
   .playhead,.measure-tag{left:42%!important}
-  .measure-tag{top:7px;font-size:9px;padding:3px 6px}
-  .score-row-label{left:5px;min-width:61px;font-size:8px;padding:3px 4px}
+  .measure-tag{top:7px;font-size:10px;padding:4px 7px}
+  .score-row-label{left:5px;min-width:72px;font-size:10px;padding:4px 5px}
   .sync{right:5px;bottom:5px;font-size:8px;padding:4px 5px}
   .sync input{width:78px}
   .main-grid{display:flex;flex-direction:column;gap:9px;margin-top:9px}
@@ -321,7 +321,7 @@ window.DETAILED_SCORE={"soprano":{"name":"Soprano","clef":"treble","measures":[{
 <script>
 "use strict";
 const DATA=window.SCORE_DATA;
-const NS="http://www.w3.org/2000/svg",PXQ=84,PLAYHEAD=588,BARLINE_OFFSET=18;
+const NS="http://www.w3.org/2000/svg",PXQ=84,BARLINE_OFFSET=18;
 const SONG_DURATION=259.23483;
 const MR_DURATION=264.91575;
 const SCORE_BPM=66;
@@ -477,17 +477,39 @@ function drawLedgerForRow(g,y,y0){
  }
 }
 function restPath(type,x,y){
- if(type==="whole") return svgEl("rect",{x:x-8,y:y-2,width:16,height:5,fill:"#172123"});
- if(type==="half") return svgEl("rect",{x:x-8,y:y-8,width:16,height:5,fill:"#172123"});
+ const g=svgEl("g",{"aria-hidden":"true"});
+ if(type==="whole"){
+   // 온쉼표: 오선 둘째 줄(위쪽)에 매달리는 직사각형
+   g.appendChild(svgEl("rect",{x:x-8,y:y-13,width:16,height:5.5,rx:.4,fill:"#172123"}));
+   return g;
+ }
+ if(type==="half"){
+   // 2분쉼표: 가운데 줄 위에 놓이는 직사각형
+   g.appendChild(svgEl("rect",{x:x-8,y:y-5.5,width:16,height:5.5,rx:.4,fill:"#172123"}));
+   return g;
+ }
  if(type==="eighth"){
-   return svgEl("path",{d:`M ${x} ${y-16} q 8 6 3 15 q -3 6 -8 8 M ${x} ${y-16} L ${x-1} ${y+10}`,
-     fill:"none",stroke:"#172123","stroke-width":2,"stroke-linecap":"round","stroke-linejoin":"round"});
+   // 8분쉼표: 둥근 머리 + 내려가는 곡선 꼬리
+   g.appendChild(svgEl("ellipse",{cx:x+3.3,cy:y-11,rx:4.2,ry:3.3,fill:"#172123",transform:`rotate(18 ${x+3.3} ${y-11})`}));
+   g.appendChild(svgEl("path",{d:`M ${x+6} ${y-9} C ${x+5} ${y-2}, ${x+1} ${y+6}, ${x-3} ${y+17}`,
+     fill:"none",stroke:"#172123","stroke-width":2.4,"stroke-linecap":"round"}));
+   return g;
  }
  if(type==="16th"){
-   return svgEl("path",{d:`M ${x} ${y-18} q 8 6 3 14 q -3 6 -8 8 M ${x} ${y-11} q 8 6 3 14 q -3 6 -8 8 M ${x} ${y-18} L ${x-1} ${y+12}`,
-     fill:"none",stroke:"#172123","stroke-width":2,"stroke-linecap":"round","stroke-linejoin":"round"});
+   // 16분쉼표: 8분쉼표 머리 두 개
+   g.appendChild(svgEl("ellipse",{cx:x+4,cy:y-15,rx:4.0,ry:3.1,fill:"#172123",transform:`rotate(18 ${x+4} ${y-15})`}));
+   g.appendChild(svgEl("ellipse",{cx:x+1,cy:y-5,rx:4.0,ry:3.1,fill:"#172123",transform:`rotate(18 ${x+1} ${y-5})`}));
+   g.appendChild(svgEl("path",{d:`M ${x+7} ${y-13} C ${x+5} ${y-5}, ${x+1} ${y+6}, ${x-4} ${y+19}`,
+     fill:"none",stroke:"#172123","stroke-width":2.4,"stroke-linecap":"round"}));
+   return g;
  }
- return svgEl("path",{d:`M ${x-1} ${y-18} q 7 6 0 13 q -7 7 0 14 q 7 6 0 13`,fill:"none",stroke:"#172123","stroke-width":2,"stroke-linecap":"round"});
+ // 4분쉼표: 인쇄 악보의 번개형 몸통 + 아래 갈고리
+ g.appendChild(svgEl("path",{d:
+   `M ${x-2} ${y-19} L ${x+5} ${y-10} L ${x} ${y-4} L ${x+6} ${y+3} `+
+   `L ${x+1} ${y+7} C ${x+7} ${y+9}, ${x+6} ${y+17}, ${x+1} ${y+19} `+
+   `C ${x-5} ${y+18}, ${x-6} ${y+12}, ${x-2} ${y+9}`,
+   fill:"none",stroke:"#172123","stroke-width":2.5,"stroke-linecap":"round","stroke-linejoin":"round"}));
+ return g;
 }
 function noteVisualType(ev){
  if(ev.type)return ev.type;
@@ -505,14 +527,35 @@ function drawDot(g,x,y,count){
    g.appendChild(svgEl("circle",{cx:x+11+i*4,cy:y-1,r:1.9,fill:"#172123"}));
  }
 }
+function drawAccidental(g,alter,y){
+ const els=[],x=-19;
+ if(alter>0){
+   // ♯ : 두 세로선 + 두 사선
+   const parts=[
+     svgEl("line",{x1:x-3,x2:x-1.5,y1:y-12,y2:y+11,stroke:"#172123","stroke-width":1.7,"stroke-linecap":"round"}),
+     svgEl("line",{x1:x+4,x2:x+5.5,y1:y-13,y2:y+10,stroke:"#172123","stroke-width":1.7,"stroke-linecap":"round"}),
+     svgEl("line",{x1:x-7,x2:x+9,y1:y-4,x2:x+9,y2:y-6,stroke:"#172123","stroke-width":2.1,"stroke-linecap":"round"}),
+     svgEl("line",{x1:x-7,x2:x+9,y1:y+4,x2:x+9,y2:y+2,stroke:"#172123","stroke-width":2.1,"stroke-linecap":"round"})
+   ];
+   // x1/y1 for the two horizontal-ish strokes need explicit correction
+   parts[2].setAttribute("x1",x-7); parts[2].setAttribute("y1",y-2.5); parts[2].setAttribute("x2",x+9); parts[2].setAttribute("y2",y-5.0);
+   parts[3].setAttribute("x1",x-7); parts[3].setAttribute("y1",y+5.0); parts[3].setAttribute("x2",x+9); parts[3].setAttribute("y2",y+2.5);
+   parts.forEach(el=>{g.appendChild(el);els.push(el)});
+ }else if(alter<0){
+   // ♭ : 긴 세로선 + 아래쪽 둥근 고리
+   const stem=svgEl("line",{x1:x-2,x2:x-2,y1:y-14,y2:y+11,stroke:"#172123","stroke-width":1.8,"stroke-linecap":"round"});
+   const bowl=svgEl("path",{d:`M ${x-2} ${y-1} C ${x+7} ${y-7}, ${x+10} ${y+1}, ${x+4} ${y+6} C ${x+1} ${y+8}, ${x-1} ${y+9}, ${x-2} ${y+10}`,
+     fill:"none",stroke:"#172123","stroke-width":1.9,"stroke-linecap":"round","stroke-linejoin":"round"});
+   g.appendChild(stem);g.appendChild(bowl);els.push(stem,bowl);
+ }
+ return els;
+}
 function createNoteGroup(ev,clef,y0,mobile){
  const x=ev.q*PXQ, y=noteYForRow(ev,clef,y0), g=svgEl("g",{"data-q":ev.q,"data-dur":ev.dur,transform:"translate("+x+",0)"});
  drawLedgerForRow(g,y,y0);
  const refs={q:ev.q,dur:ev.dur,filled:false,els:[],lyric:null};
  if(ev.alter){
-   const ac=svgEl("text",{x:-16,y:y+4,fill:"#293234","font-size":14,"font-family":"serif"});
-   ac.textContent=ev.alter>0?"♯":"♭";
-   g.appendChild(ac); refs.els.push(ac);
+   drawAccidental(g,ev.alter,y).forEach(el=>refs.els.push(el));
  }
  const vtype=noteVisualType(ev), filled=isFilledType(vtype);
  refs.filled=filled;
@@ -537,7 +580,7 @@ function createNoteGroup(ev,clef,y0,mobile){
  if(ev.dots) drawDot(g,0,y,ev.dots);
  let lyricEl=null;
  if(ev.lyric){
-   lyricEl=svgEl("text",{x:0,y:y0+137,fill:"#263234","font-size":mobile?13.5:15,"font-weight":800,"text-anchor":"middle","font-family":"Malgun Gothic, sans-serif"});
+   lyricEl=svgEl("text",{x:0,y:y0+142,fill:"#263234","font-size":mobile?16.5:17,"font-weight":800,"text-anchor":"middle","font-family":"Malgun Gothic, sans-serif"});
    lyricEl.textContent=ev.lyric;
    g.appendChild(lyricEl);
    refs.lyric=lyricEl;
@@ -550,7 +593,7 @@ function drawTie(world,x1,x2,y,up){
  world.appendChild(svgEl("path",{d:d,fill:"none",stroke:"#172123","stroke-width":1.4,"stroke-linecap":"round"}));
 }
 function renderDetailedPart(world, labels, part, rowIndex, mobile, totalW){
- const pdata=window.DETAILED_SCORE.parts[part], y0=12+rowIndex*(mobile?156:164);
+ const pdata=window.DETAILED_SCORE.parts[part], y0=12+rowIndex*(mobile?174:178);
  noteEls[part]=[]; lastActive[part]=-1;
  for(let i=0;i<5;i++) world.appendChild(svgEl("line",{x1:-800,x2:totalW+600,y1:y0+43+i*12,y2:y0+43+i*12,stroke:"#384146","stroke-width":1.25,opacity:.8}));
  // bar lines based on detailed measures
@@ -560,7 +603,7 @@ function renderDetailedPart(world, labels, part, rowIndex, mobile, totalW){
    if(rowIndex===0 && i<DATA.measureStarts.length){
      const tag=DATA.measureStarts[i];
      if(i%2===0 || tag.label==="전주"){
-       const tx=svgEl("text",{x:x+5,y:y0+30,fill:"#727b7e","font-size":8.5,"font-weight":700});
+       const tx=svgEl("text",{x:x+5,y:y0+30,fill:"#727b7e","font-size":10.5,"font-weight":800});
        tx.textContent=tag.label;
        world.appendChild(tx);
      }
@@ -625,17 +668,24 @@ function renderScore(){
  const parts=selectedParts();
  const mobile=window.matchMedia("(max-width:767px)").matches;
  const stage=document.querySelector(".score-stage"),svg=document.getElementById("staffSvg"),world=document.getElementById("scoreWorld"),labels=document.getElementById("scoreLabels");
- const rowH=mobile?156:164, stageH=Math.max(mobile?285:310,parts.length*rowH+24), totalW=DATA.totalQ*PXQ+1000;
+ const rowH=mobile?174:178, stageH=Math.max(mobile?320:330,parts.length*rowH+24), totalW=DATA.totalQ*PXQ+1000;
+ const stageW=Math.max(320,stage.clientWidth||window.innerWidth||390);
+ const svgW=Math.max(stageW,mobile?780:1400);
  stage.style.height=stageH+"px";
- svg.setAttribute("viewBox","0 0 1400 "+stageH);
+ svg.setAttribute("viewBox","0 0 "+svgW+" "+stageH);
+ svg.setAttribute("width",svgW);
+ svg.setAttribute("height",stageH);
+ svg.style.width=svgW+"px";
+ svg.style.height=stageH+"px";
  world.innerHTML=""; labels.innerHTML=""; noteEls={}; lastActive={};
  world.appendChild(svgEl("rect",{x:-900,y:0,width:totalW+1800,height:stageH,fill:"#fffdf5"}));
  parts.forEach((part,rowIndex)=>renderDetailedPart(world, labels, part, rowIndex, mobile, totalW));
  updateScorePosition();
 }
 function updateScorePosition(){
- const q=currentQ();
- document.getElementById("scoreWorld").setAttribute("transform","translate("+(PLAYHEAD-q*PXQ)+",0)");
+ const q=currentQ(),stage=document.querySelector(".score-stage");
+ const playheadX=(stage.clientWidth||window.innerWidth||390)*0.42;
+ document.getElementById("scoreWorld").setAttribute("transform","translate("+(playheadX-q*PXQ)+",0)");
  let mi=0; for(let i=0;i<DATA.measureStarts.length;i++){ if(DATA.measureStarts[i].q<=q) mi=i; else break; }
  const m=DATA.measureStarts[mi];
  document.getElementById("measureTag").textContent=m.label==="전주"?"전주":m.label+"마디"+(m.pass===2?" · 반복":"");
