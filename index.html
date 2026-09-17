@@ -205,6 +205,10 @@ kbd{font:inherit;border:1px solid var(--ink);border-radius:5px;padding:1px 5px;b
 button{pointer-events:auto;-webkit-tap-highlight-color:transparent}
 .listen-switch,.tabs,.presets,.controls,.sections,.mixer{pointer-events:auto}
 
+
+.tab.all-mode-muted{opacity:.42;filter:grayscale(.35);box-shadow:none;background:#f1eee6!important;color:#879097!important}
+.tab.all-mode-muted:hover{opacity:.68;transform:translateY(-1px)!important}
+
 </style>
 </head>
 <body>
@@ -414,9 +418,19 @@ function isLowerAllActive(){
  return mode==="song" ? !songAudios.full.muted : !mrAudios.all.muted;
 }
 function updateScoreTabs(){
+ const allMode=isLowerAllActive();
  document.querySelectorAll(".tab").forEach(b=>{
-   if(b.dataset.part==="all") b.classList.toggle("active",isLowerAllActive());
-   else b.classList.toggle("active",selectedScoreParts.has(b.dataset.part));
+   if(b.dataset.part==="all"){
+     b.classList.toggle("active",allMode);
+     b.classList.remove("all-mode-muted");
+   }else{
+     // 전체 트랙이 켜져 있을 때는 개별 파트가 선택된 것처럼 보이지 않게 한다.
+     // 다만 버튼은 클릭 가능하게 두어, 누르면 즉시 해당 파트 단독 선택으로 전환한다.
+     b.classList.toggle("active",!allMode&&selectedScoreParts.has(b.dataset.part));
+     b.classList.toggle("all-mode-muted",allMode);
+     b.setAttribute("aria-pressed",String(!allMode&&selectedScoreParts.has(b.dataset.part)));
+     b.title=allMode?"클릭하면 전체를 해제하고 이 파트만 선택합니다":"";
+   }
  });
 }
 function ensureFocusPart(){
@@ -817,19 +831,32 @@ function selectAllScoreParts(){
  renderScore();
 }
 function toggleScorePart(part){
- const currently=selectedScoreParts.has(part);
- if(currently&&selectedScoreParts.size===1)return;
+ // '전체'가 켜진 상태에서 개별 파트를 누르면 그 파트만 단독 선택한다.
+ // 기존처럼 '전체에서 그 파트만 빠지는' 동작을 하지 않는다.
+ if(isLowerAllActive()){
+   selectedScoreParts=new Set([part]);
+   scorePart=part;
+   if(mode==="song")syncSongAudioFromScore(false);
+   else syncMrAudioFromScore(false);
+   updateScoreTabs();
+   renderScore();
+   return;
+ }
 
+ const currently=selectedScoreParts.has(part);
+ if(currently&&selectedScoreParts.size===1){
+   scorePart=part;
+   updateScoreTabs();
+   return;
+ }
  if(currently)selectedScoreParts.delete(part);
  else{selectedScoreParts.add(part);scorePart=part}
 
  ensureFocusPart();
- updateScoreTabs();renderScore();
-
- // 핵심: 위 악보 선택 상태를 아래 믹서에 그대로 반영
- // 전체 트랙이 켜져 있었더라도 개별 파트 선택으로 자동 전환
  if(mode==="song")syncSongAudioFromScore(false);
  else syncMrAudioFromScore(false);
+ updateScoreTabs();
+ renderScore();
 }
 function buildSongMixer(){
  const box=document.getElementById("channels");
