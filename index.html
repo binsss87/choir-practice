@@ -196,6 +196,8 @@ kbd{font:inherit;border:1px solid var(--ink);border-radius:5px;padding:1px 5px;b
   .presets{grid-template-columns:repeat(5,minmax(0,1fr));gap:4px}
   .preset,.mr-toggle{font-size:8.5px;padding:8px 2px}
   .channel,.mr-channel{grid-template-columns:72px 40px minmax(82px,1fr) 32px;gap:5px;padding:8px 0}
+  #channels,#mrChannels{display:none}
+  .mixer-head{margin-bottom:8px}
   .ch-name{font-size:10px}.ch-name small{font-size:8px}
   .mute{height:30px;font-size:9px}
   .volnum{font-size:8px}
@@ -401,6 +403,57 @@ function setMobileSongVolume(a){
 
 const mrAudios={backing:document.getElementById("mr-backing"),all:document.getElementById("mr-all"),soprano:document.getElementById("mr-soprano"),alto:document.getElementById("mr-alto"),men:document.getElementById("mr-men")};
 
+const MOBILE_MR_MIX_SOURCES={
+ "soprano|alto":"assets/audio/mobile_mr_mix/guide_pairs/soprano_alto.mp3",
+ "soprano|men":"assets/audio/mobile_mr_mix/guide_pairs/soprano_men.mp3",
+ "alto|men":"assets/audio/mobile_mr_mix/guide_pairs/alto_men.mp3",
+ "backing|soprano":"assets/audio/mobile_mr_mix/with_backing/backing_soprano.mp3",
+ "backing|alto":"assets/audio/mobile_mr_mix/with_backing/backing_alto.mp3",
+ "backing|men":"assets/audio/mobile_mr_mix/with_backing/backing_men.mp3",
+ "backing|soprano|alto":"assets/audio/mobile_mr_mix/with_backing/backing_soprano_alto.mp3",
+ "backing|soprano|men":"assets/audio/mobile_mr_mix/with_backing/backing_soprano_men.mp3",
+ "backing|alto|men":"assets/audio/mobile_mr_mix/with_backing/backing_alto_men.mp3",
+ "backing|all":"assets/audio/mobile_mr_mix/with_backing/backing_all.mp3"
+};
+const mobileMrMixAudios={};
+Object.entries(MOBILE_MR_MIX_SOURCES).forEach(([key,src])=>{
+ const a=new Audio(src);a.preload="metadata";a.playsInline=true;
+ a.setAttribute("playsinline","");a.setAttribute("webkit-playsinline","");
+ mobileMrMixAudios[key]=a;
+});
+let mobileMrCurrentAudio=null,mobileMrCurrentKey=null,mobileMrCurrentOffset=0;
+function mobileMrSource(){
+ const backingOn=!mrAudios.backing.muted, allOn=!mrAudios.all.muted;
+ if(allOn){
+   if(backingOn)return ["backing|all",mobileMrMixAudios["backing|all"],0];
+   return ["all",mrAudios.all,MR_OFFSETS.all];
+ }
+ const guides=["soprano","alto","men"].filter(id=>!mrAudios[id].muted);
+ if(guides.length===0){
+   if(backingOn)return ["backing",mrAudios.backing,0];
+   return ["none",null,0];
+ }
+ if(guides.length===3){
+   if(backingOn)return ["backing|all",mobileMrMixAudios["backing|all"],0];
+   return ["all",mrAudios.all,MR_OFFSETS.all];
+ }
+ if(guides.length===1){
+   const id=guides[0];
+   if(backingOn){const key="backing|"+id;return [key,mobileMrMixAudios[key],0]}
+   return [id,mrAudios[id],MR_OFFSETS[id]];
+ }
+ const key=guides.join("|");
+ if(backingOn){const mixKey="backing|"+key;return [mixKey,mobileMrMixAudios[mixKey],0]}
+ return [key,mobileMrMixAudios[key],0];
+}
+function setMobileMrVolume(a,key){
+ if(!a)return;
+ if(key&&key.includes("|"))a.volume=1;
+ else if(key==="backing")a.volume=.90;
+ else a.volume=.80;
+}
+
+
 const PART_ORDER=["soprano","altoHigh","altoLow","men"];
 const PART_TO_MR={soprano:"soprano",altoHigh:"alto",altoLow:"alto",men:"men"};
 let mode="song",scorePart="soprano",selectedScoreParts=new Set(PART_ORDER),playing=false,A=null,B=null,loopOn=false,syncOffset=0;
@@ -465,12 +518,8 @@ function mobileMasterSong(){
  return mobileSongSource();
 }
 function mobileMasterMr(){
- const active=activeMrEntries();
- if(active.length){
-   const backing=active.find(([id])=>id==="backing");
-   return backing||active[0];
- }
- return ["backing",mrAudios.backing];
+ if(mobileMrCurrentAudio)return [mobileMrCurrentKey||"mobile",mobileMrCurrentAudio,mobileMrCurrentOffset||0];
+ return mobileMrSource();
 }
 
 function mobileBaseRate(){
@@ -498,31 +547,11 @@ function softSyncAudio(a,target,baseRate){
  const correction=clamp(diff*.10,-.012,.012);
  setAudioRate(a,baseRate*(1-correction));
 }
-function hardSyncMobileTracks(){
- if(!isMobileAudioMode()||!playing||mode==="song")return;
- const baseRate=mobileBaseRate();
- const active=activeMrEntries();
- if(active.length<2)return;
- const [masterId,master]=mobileMasterMr();
- const transport=(master.currentTime||0)-MR_OFFSETS[masterId];
- setAudioRate(master,baseRate);
- active.forEach(([id,a])=>{
-   if(id===masterId)return;
-   const target=clamp(transport+MR_OFFSETS[id],0,isFinite(a.duration)?a.duration:9999);
-   try{a.currentTime=target}catch(e){}
-   setAudioRate(a,baseRate);
- });
-}
+function hardSyncMobileTracks(){return;}
+
 let mobileSyncBurstTimers=[];
-function scheduleMobileSyncBurst(){
- if(!isMobileAudioMode()||mode==="song")return;
- mobileSyncBurstTimers.forEach(clearTimeout);
- mobileSyncBurstTimers=[
-   setTimeout(hardSyncMobileTracks,180),
-   setTimeout(hardSyncMobileTracks,550),
-   setTimeout(hardSyncMobileTracks,1200)
- ];
-}
+function scheduleMobileSyncBurst(){return;}
+
 function effectiveMixGain(count){
  if(!isMobileAudioMode()||count<=1)return 1;
  return 1/Math.sqrt(count);
@@ -542,6 +571,12 @@ function applyEffectiveVolumes(){
      a.volume=clamp(base*(a.muted?1:gain),0,1);
    });
  }else{
+   if(isMobileAudioMode()){
+     const [key,a]=mobileMrSource();
+     setMobileMrVolume(a,key);
+     if(mobileMrCurrentAudio&&mobileMrCurrentAudio!==a)setMobileMrVolume(mobileMrCurrentAudio,mobileMrCurrentKey);
+     return;
+   }
    const active=activeMrEntries(),gain=effectiveMixGain(active.length);
    Object.entries(mrAudios).forEach(([id,a])=>{
      const slider=document.getElementById("mv-"+id);
@@ -550,55 +585,33 @@ function applyEffectiveVolumes(){
    });
  }
 }
+
 async function reconcileMobilePlayback(){
- if(!isMobileAudioMode()){
-   applyEffectiveVolumes();
-   return;
- }
+ if(!isMobileAudioMode()){applyEffectiveVolumes();return;}
  applyEffectiveVolumes();
  if(!playing)return;
  const rate=+document.getElementById("speed").value;
  const seek=document.getElementById("seek");
  const now=clamp(modeDuration()*(+seek.value||0)/100,0,modeDuration());
-
  if(mode==="song"){
    const [key,a]=mobileSongSource();
-   if(!a){
-     setStatus("모바일 조합 음원 파일을 찾지 못했습니다.",true);
-     return;
-   }
+   if(!a){setStatus("모바일 조합 음원 파일을 찾지 못했습니다.",true);return;}
    Object.values(songAudios).forEach(x=>{if(x!==a)x.pause()});
    Object.values(mobileMixAudios).forEach(x=>{if(x!==a)x.pause()});
-   mobileSongCurrentKey=key;
-   mobileSongCurrentAudio=a;
-   a.preload="auto";
-   setAudioRate(a,rate);
-   setMobileSongVolume(a);
-   if(Math.abs((a.currentTime||0)-now)>.08){
-     try{a.currentTime=now}catch(e){}
-   }
-   if(a.paused){
-     try{const p=a.play();if(p&&p.catch)p.catch(()=>{})}catch(e){}
-   }
+   mobileSongCurrentKey=key;mobileSongCurrentAudio=a;a.preload="auto";
+   setAudioRate(a,rate);setMobileSongVolume(a);
+   if(Math.abs((a.currentTime||0)-now)>.08)try{a.currentTime=now}catch(e){}
+   if(a.paused)try{const p=a.play();if(p&&p.catch)p.catch(()=>{})}catch(e){}
    return;
  }
-
- const activeSet=new Set(activeMrEntries().map(([id])=>id));
- const entries=Object.entries(mrAudios);
- entries.forEach(([id,a])=>{if(!activeSet.has(id))a.pause()});
- for(const [id,a] of entries){
-   if(!activeSet.has(id))continue;
-   setAudioRate(a,rate);
-   const target=clamp(now+MR_OFFSETS[id],0,isFinite(a.duration)?a.duration:9999);
-   if(Math.abs((a.currentTime||0)-target)>.25){
-     try{a.currentTime=target}catch(e){}
-   }
-   a.preload="auto";
-   if(a.paused){
-     try{const p=a.play();if(p&&p.catch)p.catch(()=>{})}catch(e){}
-   }
- }
- scheduleMobileSyncBurst();
+ const [key,a,offset]=mobileMrSource();
+ [...Object.values(mrAudios),...Object.values(mobileMrMixAudios)].forEach(x=>{if(x!==a)x.pause()});
+ if(!a){mobileMrCurrentAudio=null;mobileMrCurrentKey=null;mobileMrCurrentOffset=0;setStatus("음원 듣기 · 모두 음소거",false);return;}
+ mobileMrCurrentKey=key;mobileMrCurrentAudio=a;mobileMrCurrentOffset=offset||0;
+ a.preload="auto";setAudioRate(a,rate);setMobileMrVolume(a,key);
+ const target=clamp(now+(offset||0),0,isFinite(a.duration)?a.duration:9999);
+ if(Math.abs((a.currentTime||0)-target)>.08)try{a.currentTime=target}catch(e){}
+ if(a.paused)try{const p=a.play();if(p&&p.catch)p.catch(()=>{})}catch(e){}
 }
 
 function fmt(t){t=Math.max(0,isFinite(t)?t:0);const m=Math.floor(t/60),s=t-m*60;return m+":"+s.toFixed(1).padStart(4,"0")}
@@ -609,12 +622,12 @@ function globalTime(){
    return clamp(mrAudios.backing.currentTime||0,0,MR_DURATION);
  }
  if(mode==="song"){
-   const [id,a]=mobileMasterSong();
-   return clamp(a?(a.currentTime||0):0,0,SONG_DURATION);
+   const [id,a]=mobileMasterSong();return clamp(a?(a.currentTime||0):0,0,SONG_DURATION);
  }
- const [id,a]=mobileMasterMr();
- return clamp((a.currentTime||0)-MR_OFFSETS[id],0,MR_DURATION);
+ const [id,a,offset]=mobileMasterMr();
+ return clamp(a?((a.currentTime||0)-(offset||0)):0,0,MR_DURATION);
 }
+
 function rawQFromTime(t){
  const lead=mode==="song"?SONG_SCORE_LEAD:MR_SCORE_LEAD;
  return (t-lead)/SEC_PER_Q;
@@ -945,32 +958,28 @@ function updateAll(){
  const t=globalTime(),d=modeDuration();document.getElementById("curTime").textContent=fmt(t);document.getElementById("duration").textContent=fmt(d);
  document.getElementById("seek").value=d?t/d*100:0;updateScorePosition();
 }
-function pauseEverything(){Object.values(songAudios).forEach(a=>a.pause());Object.values(mobileMixAudios).forEach(a=>a.pause());Object.values(mrAudios).forEach(a=>a.pause())}
+function pauseEverything(){Object.values(songAudios).forEach(a=>a.pause());Object.values(mobileMixAudios).forEach(a=>a.pause());Object.values(mrAudios).forEach(a=>a.pause());Object.values(mobileMrMixAudios).forEach(a=>a.pause())}
 function setGlobalTime(t){
  t=clamp(t,0,modeDuration());
  if(mode==="song"){
    if(isMobileAudioMode()){
      const [key,a]=mobileSongSource();
-     if(a){
-       try{a.currentTime=t}catch(e){}
-       mobileSongCurrentKey=key;
-       mobileSongCurrentAudio=a;
-     }
-   }else{
-     Object.entries(songAudios).forEach(([id,a])=>{try{a.currentTime=t}catch(e){}});
-   }
+     if(a){try{a.currentTime=t}catch(e){} mobileSongCurrentKey=key;mobileSongCurrentAudio=a;}
+   }else Object.entries(songAudios).forEach(([id,a])=>{try{a.currentTime=t}catch(e){}});
  }else{
-   const entries=isMobileAudioMode()?activeMrEntries():Object.entries(mrAudios);
-   entries.forEach(([id,a])=>{
-     const at=clamp(t+MR_OFFSETS[id],0,isFinite(a.duration)?a.duration:9999);
-     try{a.currentTime=at}catch(e){}
-   });
+   if(isMobileAudioMode()){
+     const [key,a,offset]=mobileMrSource();
+     if(a){const at=clamp(t+(offset||0),0,isFinite(a.duration)?a.duration:9999);try{a.currentTime=at}catch(e){} mobileMrCurrentKey=key;mobileMrCurrentAudio=a;mobileMrCurrentOffset=offset||0;}
+   }else{
+     Object.entries(mrAudios).forEach(([id,a])=>{const at=clamp(t+MR_OFFSETS[id],0,isFinite(a.duration)?a.duration:9999);try{a.currentTime=at}catch(e){}});
+   }
  }
  updateAll();
 }
+
 function prepareAudio(){
  if(audioUnlocked)return;
- const all=[...Object.values(songAudios),...Object.values(mobileMixAudios),...Object.values(mrAudios)];
+ const all=[...Object.values(songAudios),...Object.values(mobileMixAudios),...Object.values(mrAudios),...Object.values(mobileMrMixAudios)];
  all.forEach(a=>{
    a.playsInline=true;
    a.preload=isMobileAudioMode()?"metadata":"auto";
@@ -988,57 +997,31 @@ async function playCurrent(){
    const t=globalTime();
    if(isMobileAudioMode()){
      const [key,a]=mobileSongSource();
-     if(!a){
-       setStatus("모바일 조합 음원 파일을 찾지 못했습니다.",true);
-       return;
-     }
-     mobileSongCurrentKey=key;
-     mobileSongCurrentAudio=a;
-     a.preload="auto";
-     setAudioRate(a,rate);
-     setMobileSongVolume(a);
-     if(Math.abs((a.currentTime||0)-t)>.08){
-       try{a.currentTime=t}catch(e){}
-     }
+     if(!a){setStatus("모바일 조합 음원 파일을 찾지 못했습니다.",true);return;}
+     mobileSongCurrentKey=key;mobileSongCurrentAudio=a;a.preload="auto";setAudioRate(a,rate);setMobileSongVolume(a);
+     if(Math.abs((a.currentTime||0)-t)>.08)try{a.currentTime=t}catch(e){}
      try{const p=a.play();if(p&&p.then)promises.push(p)}catch(e){}
    }else{
-     Object.entries(songAudios).forEach(([id,a])=>{
-       setAudioRate(a,rate);
-       if(Math.abs((a.currentTime||0)-t)>.08){
-         try{a.currentTime=t}catch(e){}
-       }
-       try{const p=a.play();if(p&&p.then)promises.push(p)}catch(e){}
-     });
+     Object.entries(songAudios).forEach(([id,a])=>{setAudioRate(a,rate);if(Math.abs((a.currentTime||0)-t)>.08)try{a.currentTime=t}catch(e){};try{const p=a.play();if(p&&p.then)promises.push(p)}catch(e){}});
    }
  }else{
    const t=globalTime();
-   const entries=isMobileAudioMode()?activeMrEntries():Object.entries(mrAudios);
-   entries.forEach(([id,a])=>{
-     if(isMobileAudioMode())a.preload="auto";
-     setAudioRate(a,rate);
-     const target=clamp(t+MR_OFFSETS[id],0,isFinite(a.duration)?a.duration:9999);
-     if(Math.abs((a.currentTime||0)-target)>(isMobileAudioMode()?.25:.08)){
-       try{a.currentTime=target}catch(e){}
-     }
-     try{const p=a.play();if(p&&p.then)promises.push(p)}catch(e){}
-   });
+   if(isMobileAudioMode()){
+     const [key,a,offset]=mobileMrSource();
+     if(a){mobileMrCurrentKey=key;mobileMrCurrentAudio=a;mobileMrCurrentOffset=offset||0;a.preload="auto";setAudioRate(a,rate);setMobileMrVolume(a,key);const target=clamp(t+(offset||0),0,isFinite(a.duration)?a.duration:9999);if(Math.abs((a.currentTime||0)-target)>.08)try{a.currentTime=target}catch(e){};try{const p=a.play();if(p&&p.then)promises.push(p)}catch(e){}}
+   }else{
+     Object.entries(mrAudios).forEach(([id,a])=>{setAudioRate(a,rate);const target=clamp(t+MR_OFFSETS[id],0,isFinite(a.duration)?a.duration:9999);if(Math.abs((a.currentTime||0)-target)>.08)try{a.currentTime=target}catch(e){};try{const p=a.play();if(p&&p.then)promises.push(p)}catch(e){}});
+   }
  }
  const r=await Promise.allSettled(promises),ok=r.some(x=>x.status==="fulfilled");
- if(ok||promises.length===0){
-   playing=true;
-   document.getElementById("playBtn").textContent="❚❚ 일시정지";
-   setStatus(mode==="song"?"노래 듣기 · 재생 중":"음원 듣기 · MR 믹스 재생 중",false);
-   if(isMobileAudioMode())scheduleMobileSyncBurst();
- }else{
-   playing=false;
-   document.getElementById("playBtn").textContent="▶ 재생";
-   setStatus("재생이 차단되었습니다. ZIP을 압축 해제한 뒤 Chrome/Edge에서 다시 실행해 주세요.",true);
- }
+ if(ok||promises.length===0){playing=true;document.getElementById("playBtn").textContent="❚❚ 일시정지";setStatus(mode==="song"?"노래 듣기 · 재생 중":"음원 듣기 · 재생 중",false);}
+ else{playing=false;document.getElementById("playBtn").textContent="▶ 재생";setStatus("재생이 차단되었습니다. ZIP을 압축 해제한 뒤 Chrome/Edge에서 다시 실행해 주세요.",true);}
 }
+
 function pauseCurrent(){
  pauseEverything();
  const baseRate=mobileBaseRate();
- [...Object.values(songAudios),...Object.values(mobileMixAudios),...Object.values(mrAudios)].forEach(a=>setAudioRate(a,baseRate));
+ [...Object.values(songAudios),...Object.values(mobileMixAudios),...Object.values(mrAudios),...Object.values(mobileMrMixAudios)].forEach(a=>setAudioRate(a,baseRate));
  playing=false;
  document.getElementById("playBtn").textContent="▶ 재생";
  setStatus("일시정지",false);
@@ -1055,26 +1038,11 @@ function syncSongTracks(){
 }
 function syncMrTracks(){
  if(!playing||mode!=="mr")return;
- if(isMobileAudioMode()){
-   const active=activeMrEntries();
-   if(active.length<2)return;
-   const baseRate=mobileBaseRate(),[masterId,master]=mobileMasterMr();
-   const t=(master.currentTime||0)-MR_OFFSETS[masterId];
-   setAudioRate(master,baseRate);
-   active.forEach(([id,a])=>{
-     if(id===masterId)return;
-     const target=clamp(t+MR_OFFSETS[id],0,isFinite(a.duration)?a.duration:9999);
-     softSyncAudio(a,target,baseRate);
-   });
-   return;
- }
+ if(isMobileAudioMode())return;
  const t=mrAudios.backing.currentTime||0;
- Object.entries(mrAudios).forEach(([id,a])=>{
-   if(id==="backing")return;
-   const target=t+MR_OFFSETS[id];
-   if(Math.abs((a.currentTime||0)-target)>.09)try{a.currentTime=target}catch(e){}
- });
+ Object.entries(mrAudios).forEach(([id,a])=>{if(id==="backing")return;const target=t+MR_OFFSETS[id];if(Math.abs((a.currentTime||0)-target)>.09)try{a.currentTime=target}catch(e){}});
 }
+
 let lastUiTick=0;
 function tick(ts){
  if(playing){
@@ -1227,6 +1195,8 @@ function toggleScorePart(part){
  if(currently)selectedScoreParts.delete(part);
  else{selectedScoreParts.add(part);scorePart=part}
 
+ if(selectedScoreParts.size===PART_ORDER.length){selectAllScoreParts();return;}
+
  ensureFocusPart();
  if(mode==="song")syncSongAudioFromScore(false);
  else syncMrAudioFromScore(false);
@@ -1267,6 +1237,7 @@ function toggleSongTrack(id){
    if(parts.length){
      selectedScoreParts=new Set(parts);
      scorePart=parts.includes(id)?id:(selectedScoreParts.has(scorePart)?scorePart:parts[0]);
+     if(parts.length===PART_ORDER.length){selectAllScoreParts();return;}
    }
  }
  refreshSongUi();
@@ -1345,6 +1316,7 @@ function toggleMrTrack(id){
    if(parts.length){
      selectedScoreParts=new Set(parts);
      if(!selectedScoreParts.has(scorePart)) scorePart=parts[0];
+     if(parts.length===PART_ORDER.length){selectAllScoreParts();return;}
    }
  }
  refreshMrUi();
@@ -1389,11 +1361,11 @@ function init(){
  }));
  document.querySelectorAll(".preset").forEach(b=>b.addEventListener("click",()=>toggleSongQuick(b.dataset.preset)));
  document.querySelectorAll(".mr-toggle").forEach(b=>b.addEventListener("click",()=>toggleMrFromButton(b.dataset.mrToggle)));
-   [...Object.values(songAudios),...Object.values(mobileMixAudios),...Object.values(mrAudios)].forEach(a=>a.addEventListener("error",()=>setStatus("오디오 파일을 찾지 못했습니다. 모바일 조합 음원 폴더까지 업로드됐는지 확인해 주세요.",true)));
+   [...Object.values(songAudios),...Object.values(mobileMixAudios),...Object.values(mrAudios),...Object.values(mobileMrMixAudios)].forEach(a=>a.addEventListener("error",()=>setStatus("오디오 파일을 찾지 못했습니다. 모바일 조합 음원 폴더까지 업로드됐는지 확인해 주세요.",true)));
  document.getElementById("playBtn").addEventListener("click",toggle);
  document.getElementById("back5").addEventListener("click",()=>setGlobalTime(globalTime()-5));document.getElementById("fwd5").addEventListener("click",()=>setGlobalTime(globalTime()+5));
  document.getElementById("seek").addEventListener("input",e=>setGlobalTime(modeDuration()*e.target.value/100));
- document.getElementById("speed").addEventListener("change",e=>{[...Object.values(songAudios),...Object.values(mobileMixAudios),...Object.values(mrAudios)].forEach(a=>setAudioRate(a,+e.target.value))});
+ document.getElementById("speed").addEventListener("change",e=>{[...Object.values(songAudios),...Object.values(mobileMixAudios),...Object.values(mrAudios),...Object.values(mobileMrMixAudios)].forEach(a=>setAudioRate(a,+e.target.value))});
  document.getElementById("syncOffset").addEventListener("input",e=>{syncOffset=+e.target.value;document.getElementById("syncVal").textContent=(syncOffset>=0?"+":"")+syncOffset.toFixed(2)+"s";updateAll()});
  document.getElementById("syncReset").addEventListener("click",()=>{syncOffset=0;const s=document.getElementById("syncOffset");s.value=0;document.getElementById("syncVal").textContent="0.00s";updateAll()});
  document.getElementById("setA").addEventListener("click",()=>{A=globalTime();if(B!==null&&B<=A)B=null;loopDisplay()});
