@@ -660,70 +660,85 @@ function beginScoreDrag(e){
 
  e.preventDefault();
  const rect=stage.getBoundingClientRect();
- const startQ=currentQ();
- const startTime=globalTime();
- const wasPlaying=playing;
+ const x=clamp(e.clientX-rect.left,12,Math.max(12,rect.width-12));
 
  scoreDrag={
    pointerId:e.pointerId,
    stage,
    playhead,
    rect,
-   startQ,
-   startTime,
-   wasPlaying,
-   targetQ:startQ
+   lastX:x,
+   pendingDeltaQ:0,
+   targetQ:currentQ(),
+   lastSeekAt:0
  };
 
+ stage.style.setProperty("--playhead-left",x+"px");
  playhead.classList.add("dragging");
  try{playhead.setPointerCapture(e.pointerId)}catch(err){}
- updateScoreDrag(e);
+}
+
+function applyScoreDragSeek(force=false){
+ if(!scoreDrag)return;
+ const now=performance.now();
+ // PC 다중 오디오에도 부담이 과하지 않도록 약 14fps 수준으로 실제 seek.
+ if(!force && now-scoreDrag.lastSeekAt<70)return;
+
+ const baseQ=currentQ();
+ const q=clamp(baseQ+scoreDrag.pendingDeltaQ,0,DATA.totalQ);
+ scoreDrag.pendingDeltaQ=0;
+ scoreDrag.targetQ=q;
+ scoreDrag.lastSeekAt=now;
+
+ setGlobalTime(qToTime(q));
 }
 
 function updateScoreDrag(e){
  if(!scoreDrag||e.pointerId!==scoreDrag.pointerId)return;
  e.preventDefault();
 
- const {stage,rect,startQ}=scoreDrag;
+ const {stage,rect}=scoreDrag;
  const x=clamp(e.clientX-rect.left,12,Math.max(12,rect.width-12));
- const fixedX=rect.width*.42;
- const deltaQ=(x-fixedX)/SCORE_PXQ;
- const q=clamp(startQ+deltaQ,0,DATA.totalQ);
- const t=qToTime(q);
+ const dx=x-scoreDrag.lastX;
+ scoreDrag.lastX=x;
+ scoreDrag.pendingDeltaQ+=dx/SCORE_PXQ;
 
- scoreDrag.targetQ=q;
  stage.style.setProperty("--playhead-left",x+"px");
 
- const tag=document.getElementById("measureTag");
- tag.textContent=measureLabelAtQ(q);
+ // 음악과 악보가 계속 움직이는 상태에서 실제 위치도 실시간 갱신
+ applyScoreDragSeek(false);
+
+ const previewQ=clamp(currentQ()+scoreDrag.pendingDeltaQ,0,DATA.totalQ);
+ const previewT=qToTime(previewQ);
+ document.getElementById("measureTag").textContent=measureLabelAtQ(previewQ);
 
  const d=modeDuration();
- document.getElementById("curTime").textContent=fmt(t);
- document.getElementById("seek").value=d?t/d*100:0;
+ document.getElementById("curTime").textContent=fmt(previewT);
+ document.getElementById("seek").value=d?previewT/d*100:0;
 
  const ph=document.getElementById("scorePlayhead");
- ph.setAttribute("aria-valuenow",String(Math.round((q/DATA.totalQ)*100)));
- ph.setAttribute("aria-valuetext",fmt(t)+" · "+measureLabelAtQ(q));
+ ph.setAttribute("aria-valuenow",String(Math.round((previewQ/DATA.totalQ)*100)));
+ ph.setAttribute("aria-valuetext",fmt(previewT)+" · "+measureLabelAtQ(previewQ));
 }
 
-async function finishScoreDrag(e,cancelled=false){
+function finishScoreDrag(e,cancelled=false){
  if(!scoreDrag||e.pointerId!==scoreDrag.pointerId)return;
  e.preventDefault();
 
  const d=scoreDrag;
- const q=cancelled?d.startQ:d.targetQ;
- const t=cancelled?d.startTime:qToTime(q);
+
+ if(!cancelled){
+   // 남아 있는 미세 이동량까지 마지막에 정확히 반영
+   applyScoreDragSeek(true);
+ }
 
  d.stage.style.removeProperty("--playhead-left");
  d.playhead.classList.remove("dragging");
  try{d.playhead.releasePointerCapture(e.pointerId)}catch(err){}
  scoreDrag=null;
 
- // 재생 상태는 건드리지 않고 현재 재생 중인 오디오의 위치만 이동한다.
- // 따라서 재생 중 드래그하면 놓는 순간 해당 위치에서 바로 계속 재생된다.
- setGlobalTime(t);
+ updateAll();
 }
-
 function initScoreDrag(){
  const ph=document.getElementById("scorePlayhead");
  if(!ph)return;
@@ -1020,15 +1035,20 @@ function renderScore(){
 }
 function updateScorePosition(){
  const q=currentQ(),stage=document.querySelector(".score-stage");
+ const playheadX=scoreDrag
+   ? clamp(scoreDrag.lastX,12,Math.max(12,stage.clientWidth-12))
+   : (stage.clientWidth||window.innerWidth||390)*0.42;
+
+ // 드래그 중에도 악보는 계속 현재 재생 위치에 맞춰 흐른다.
+ document.getElementById("scoreWorld").setAttribute("transform","translate("+(playheadX-q*SCORE_PXQ)+",0)");
+
  if(!scoreDrag){
-   const playheadX=(stage.clientWidth||window.innerWidth||390)*0.42;
-   document.getElementById("scoreWorld").setAttribute("transform","translate("+(playheadX-q*SCORE_PXQ)+",0)");
    document.getElementById("measureTag").textContent=measureLabelAtQ(q);
- }
- const ph=document.getElementById("scorePlayhead");
- if(ph&&!scoreDrag){
-   ph.setAttribute("aria-valuenow",String(Math.round((q/DATA.totalQ)*100)));
-   ph.setAttribute("aria-valuetext",fmt(qToTime(q))+" · "+measureLabelAtQ(q));
+   const ph=document.getElementById("scorePlayhead");
+   if(ph){
+     ph.setAttribute("aria-valuenow",String(Math.round((q/DATA.totalQ)*100)));
+     ph.setAttribute("aria-valuetext",fmt(qToTime(q))+" · "+measureLabelAtQ(q));
+   }
  }
  selectedParts().forEach(part=>{
    const arr=noteEls[part]||[];
