@@ -416,6 +416,68 @@ function mobileMasterMr(){
  }
  return ["backing",mrAudios.backing];
 }
+
+function mobileBaseRate(){
+ return +document.getElementById("speed").value||1;
+}
+function setAudioRate(a,rate){
+ const r=clamp(rate,.5,1.5);
+ try{a.playbackRate=r}catch(e){}
+ try{a.preservesPitch=true}catch(e){}
+ try{a.webkitPreservesPitch=true}catch(e){}
+}
+function softSyncAudio(a,target,baseRate){
+ const now=a.currentTime||0,diff=now-target,ad=Math.abs(diff);
+ // 모바일에서 160ms 이상 벌어졌을 때만 한 번 강하게 맞춘다.
+ if(ad>.16){
+   try{a.currentTime=target}catch(e){}
+   setAudioRate(a,baseRate);
+   return;
+ }
+ // 20ms 이하는 그대로, 그 이상은 ±1.2% 범위에서 천천히 따라잡는다.
+ if(ad<.02){
+   setAudioRate(a,baseRate);
+   return;
+ }
+ const correction=clamp(diff*.10,-.012,.012);
+ setAudioRate(a,baseRate*(1-correction));
+}
+function hardSyncMobileTracks(){
+ if(!isMobileAudioMode()||!playing)return;
+ const baseRate=mobileBaseRate();
+ if(mode==="song"){
+   const active=activeSongEntries();
+   if(active.length<2)return;
+   const master=active[0][1],t=master.currentTime||0;
+   setAudioRate(master,baseRate);
+   active.slice(1).forEach(([id,a])=>{
+     try{a.currentTime=t}catch(e){}
+     setAudioRate(a,baseRate);
+   });
+ }else{
+   const active=activeMrEntries();
+   if(active.length<2)return;
+   const [masterId,master]=mobileMasterMr();
+   const transport=(master.currentTime||0)-MR_OFFSETS[masterId];
+   setAudioRate(master,baseRate);
+   active.forEach(([id,a])=>{
+     if(id===masterId)return;
+     const target=clamp(transport+MR_OFFSETS[id],0,isFinite(a.duration)?a.duration:9999);
+     try{a.currentTime=target}catch(e){}
+     setAudioRate(a,baseRate);
+   });
+ }
+}
+let mobileSyncBurstTimers=[];
+function scheduleMobileSyncBurst(){
+ if(!isMobileAudioMode())return;
+ mobileSyncBurstTimers.forEach(clearTimeout);
+ mobileSyncBurstTimers=[
+   setTimeout(hardSyncMobileTracks,180),
+   setTimeout(hardSyncMobileTracks,550),
+   setTimeout(hardSyncMobileTracks,1200)
+ ];
+}
 function effectiveMixGain(count){
  if(!isMobileAudioMode()||count<=1)return 1;
  return 1/Math.sqrt(count);
@@ -467,6 +529,7 @@ async function reconcileMobilePlayback(){
    if(Math.abs((a.currentTime||0)-target)>.25){
      try{a.currentTime=target}catch(e){}
    }
+   a.preload="auto";
    if(a.paused){
      try{
        const p=a.play();
@@ -474,6 +537,7 @@ async function reconcileMobilePlayback(){
      }catch(e){}
    }
  }
+ scheduleMobileSyncBurst();
 }
 
 function fmt(t){t=Math.max(0,isFinite(t)?t:0);const m=Math.floor(t/60),s=t-m*60;return m+":"+s.toFixed(1).padStart(4,"0")}
@@ -855,8 +919,9 @@ async function playCurrent(){
    const t=globalTime();
    const entries=isMobileAudioMode()?activeSongEntries():Object.entries(songAudios);
    entries.forEach(([id,a])=>{
-     a.playbackRate=rate;
-     if(Math.abs((a.currentTime||0)-t)>(isMobileAudioMode()?.25:.08)){
+     if(isMobileAudioMode())a.preload="auto";
+     setAudioRate(a,rate);
+     if(Math.abs((a.currentTime||0)-t)>(isMobileAudioMode()?.12:.08)){
        try{a.currentTime=t}catch(e){}
      }
      try{const p=a.play();if(p&&p.then)promises.push(p)}catch(e){}
@@ -865,7 +930,8 @@ async function playCurrent(){
    const t=globalTime();
    const entries=isMobileAudioMode()?activeMrEntries():Object.entries(mrAudios);
    entries.forEach(([id,a])=>{
-     a.playbackRate=rate;
+     if(isMobileAudioMode())a.preload="auto";
+     setAudioRate(a,rate);
      const target=clamp(t+MR_OFFSETS[id],0,isFinite(a.duration)?a.duration:9999);
      if(Math.abs((a.currentTime||0)-target)>(isMobileAudioMode()?.25:.08)){
        try{a.currentTime=target}catch(e){}
@@ -878,23 +944,30 @@ async function playCurrent(){
    playing=true;
    document.getElementById("playBtn").textContent="❚❚ 일시정지";
    setStatus(mode==="song"?"노래 듣기 · 재생 중":"음원 듣기 · MR 믹스 재생 중",false);
+   if(isMobileAudioMode())scheduleMobileSyncBurst();
  }else{
    playing=false;
    document.getElementById("playBtn").textContent="▶ 재생";
    setStatus("재생이 차단되었습니다. ZIP을 압축 해제한 뒤 Chrome/Edge에서 다시 실행해 주세요.",true);
  }
 }
-function pauseCurrent(){pauseEverything();playing=false;document.getElementById("playBtn").textContent="▶ 재생";setStatus("일시정지",false)}
+function pauseCurrent(){
+ pauseEverything();
+ const baseRate=mobileBaseRate();
+ [...Object.values(songAudios),...Object.values(mrAudios)].forEach(a=>setAudioRate(a,baseRate));
+ playing=false;
+ document.getElementById("playBtn").textContent="▶ 재생";
+ setStatus("일시정지",false);
+}
 function toggle(){playing?pauseCurrent():playCurrent()}
 function syncSongTracks(){
  if(!playing||mode!=="song")return;
  if(isMobileAudioMode()){
    const active=activeSongEntries();
    if(active.length<2)return;
-   const master=active[0][1],t=master.currentTime||0;
-   active.slice(1).forEach(([id,a])=>{
-     if(Math.abs((a.currentTime||0)-t)>.35)try{a.currentTime=t}catch(e){}
-   });
+   const baseRate=mobileBaseRate(),master=active[0][1],t=master.currentTime||0;
+   setAudioRate(master,baseRate);
+   active.slice(1).forEach(([id,a])=>softSyncAudio(a,t,baseRate));
    return;
  }
  const t=songAudios.full.currentTime;
@@ -908,12 +981,13 @@ function syncMrTracks(){
  if(isMobileAudioMode()){
    const active=activeMrEntries();
    if(active.length<2)return;
-   const [masterId,master]=mobileMasterMr();
+   const baseRate=mobileBaseRate(),[masterId,master]=mobileMasterMr();
    const t=(master.currentTime||0)-MR_OFFSETS[masterId];
+   setAudioRate(master,baseRate);
    active.forEach(([id,a])=>{
      if(id===masterId)return;
-     const target=t+MR_OFFSETS[id];
-     if(Math.abs((a.currentTime||0)-target)>.35)try{a.currentTime=target}catch(e){}
+     const target=clamp(t+MR_OFFSETS[id],0,isFinite(a.duration)?a.duration:9999);
+     softSyncAudio(a,target,baseRate);
    });
    return;
  }
@@ -1261,7 +1335,7 @@ function init(){
  document.getElementById("scoreModal").addEventListener("click",e=>{if(e.target.id==="scoreModal")e.currentTarget.classList.remove("open")});
  let resizeTimer=null;
  window.addEventListener("resize",()=>{if(!scoreReady)return;clearTimeout(resizeTimer);resizeTimer=setTimeout(renderScore,120)});
- setInterval(()=>{syncSongTracks();syncMrTracks()},isMobileAudioMode()?1200:300);loopDisplay();updateAll();tick();
+ setInterval(()=>{syncSongTracks();syncMrTracks()},isMobileAudioMode()?250:300);loopDisplay();updateAll();tick();
 }
 init();
 </script>
