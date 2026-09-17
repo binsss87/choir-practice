@@ -173,7 +173,7 @@ kbd{font:inherit;border:1px solid var(--ink);border-radius:5px;padding:1px 5px;b
   .score-stage{border-width:1.5px;border-radius:11px}
   .playhead,.measure-tag{left:42%!important}
   .measure-tag{top:7px;font-size:10px;padding:4px 7px}
-  .score-row-label{left:5px;min-width:72px;font-size:10px;padding:4px 5px}
+  .score-row-label{left:5px;min-width:68px;font-size:9.5px;padding:4px 5px}
   .sync{right:5px;bottom:5px;font-size:8px;padding:4px 5px}
   .sync input{width:78px}
   .main-grid{display:flex;flex-direction:column;gap:9px;margin-top:9px}
@@ -321,8 +321,9 @@ window.DETAILED_SCORE={"soprano":{"name":"Soprano","clef":"treble","measures":[{
 <script>
 "use strict";
 const DATA=window.SCORE_DATA;
-const NS="http://www.w3.org/2000/svg",PXQ=84,BARLINE_OFFSET=18;
-const SONG_DURATION=259.23483;
+const NS="http://www.w3.org/2000/svg",PXQ=84,MOBILE_PXQ=58,BARLINE_OFFSET=18;
+let SCORE_PXQ=PXQ;
+const SONG_DURATION=259.272;
 const MR_DURATION=264.91575;
 const SCORE_BPM=66;
 const SEC_PER_Q=60/SCORE_BPM;
@@ -331,8 +332,8 @@ const BASE_SCORE_SYNC=0.80;
 /* 실제 오디오의 66BPM 박 위치 기준 */
 const SONG_SCORE_LEAD=0.48;
 const MR_SCORE_LEAD=3.78;
-/* MR 파일별 시작 지연 보정 */
-const MR_OFFSETS={backing:0,all:-0.726,soprano:0.935,alto:0.148,men:1.961};
+/* MR 파일별 실제 파형/화성 진행을 다시 대조해 재산정한 시작 지연 보정 */
+const MR_OFFSETS={backing:0,all:0.200,soprano:0.947,alto:0.147,men:1.960};
 
 const SONG_TRACKS=[
  {id:"full",name:"전체 합창",sub:"Full",color:"#65a987"},
@@ -641,7 +642,7 @@ function drawAccidental(g,alter,y){
  return els;
 }
 function createNoteGroup(ev,clef,y0,mobile){
- const x=ev.q*PXQ, y=noteYForRow(ev,clef,y0), g=svgEl("g",{"data-q":ev.q,"data-dur":ev.dur,transform:"translate("+x+",0)"});
+ const x=ev.q*SCORE_PXQ, y=noteYForRow(ev,clef,y0), g=svgEl("g",{"data-q":ev.q,"data-dur":ev.dur,transform:"translate("+x+",0)"});
  drawLedgerForRow(g,y,y0);
  const refs={q:ev.q,dur:ev.dur,filled:false,els:[],lyric:null};
  if(ev.alter){
@@ -670,7 +671,7 @@ function createNoteGroup(ev,clef,y0,mobile){
  if(ev.dots) drawDot(g,0,y,ev.dots);
  let lyricEl=null;
  if(ev.lyric){
-   lyricEl=svgEl("text",{x:0,y:y0+142,fill:"#263234","font-size":mobile?16.5:17,"font-weight":800,"text-anchor":"middle","font-family":"Malgun Gothic, sans-serif"});
+   lyricEl=svgEl("text",{x:0,y:y0+142,fill:"#263234","font-size":mobile?15:17,"font-weight":800,"text-anchor":"middle","font-family":"Malgun Gothic, sans-serif"});
    lyricEl.textContent=ev.lyric;
    g.appendChild(lyricEl);
    refs.lyric=lyricEl;
@@ -688,7 +689,7 @@ function renderDetailedPart(world, labels, part, rowIndex, mobile, totalW){
  for(let i=0;i<5;i++) world.appendChild(svgEl("line",{x1:-800,x2:totalW+600,y1:y0+43+i*12,y2:y0+43+i*12,stroke:"#384146","stroke-width":1.25,opacity:.8}));
  // bar lines based on detailed measures
  pdata.measures.forEach((m,i)=>{
-   const x=m.qStart*PXQ-BARLINE_OFFSET;
+   const x=m.qStart*SCORE_PXQ-BARLINE_OFFSET;
    world.appendChild(svgEl("line",{x1:x,x2:x,y1:y0+36,y2:y0+98,stroke:"#697478","stroke-width":1.25,opacity:.72}));
    if(rowIndex===0 && i<DATA.measureStarts.length){
      const tag=DATA.measureStarts[i];
@@ -699,7 +700,7 @@ function renderDetailedPart(world, labels, part, rowIndex, mobile, totalW){
      }
    }
  });
- const endX=pdata.totalQ*PXQ-BARLINE_OFFSET;
+ const endX=pdata.totalQ*SCORE_PXQ-BARLINE_OFFSET;
  world.appendChild(svgEl("line",{x1:endX,x2:endX,y1:y0+36,y2:y0+98,stroke:"#4f5a5e","stroke-width":1.6,opacity:.82}));
  const clefText=svgEl("text",{x:-53,y:y0+93,fill:"#263035","font-size":52,"font-family":"serif"});
  clefText.textContent=pdata.clef==="bass"?"𝄢":"𝄞";
@@ -707,7 +708,7 @@ function renderDetailedPart(world, labels, part, rowIndex, mobile, totalW){
  const ties=[];
  pdata.measures.forEach((m)=>{
    m.events.forEach((ev,ei)=>{
-     const x=ev.q*PXQ;
+     const x=ev.q*SCORE_PXQ;
      if(ev.rest){
        const centerY=y0+67;
        const rest=restPath(noteVisualType(ev),x,centerY);
@@ -757,10 +758,11 @@ function renderScore(){
  ensureFocusPart();
  const parts=selectedParts();
  const mobile=window.matchMedia("(max-width:767px)").matches;
+ SCORE_PXQ=mobile?MOBILE_PXQ:PXQ;
  const stage=document.querySelector(".score-stage"),svg=document.getElementById("staffSvg"),world=document.getElementById("scoreWorld"),labels=document.getElementById("scoreLabels");
- const rowH=mobile?174:178, stageH=Math.max(mobile?320:330,parts.length*rowH+24), totalW=DATA.totalQ*PXQ+1000;
+ const rowH=mobile?174:178, stageH=Math.max(mobile?320:330,parts.length*rowH+24), totalW=DATA.totalQ*SCORE_PXQ+1000;
  const stageW=Math.max(320,stage.clientWidth||window.innerWidth||390);
- const svgW=Math.max(stageW,mobile?780:1400);
+ const svgW=mobile?stageW:Math.max(stageW,1400);
  stage.style.height=stageH+"px";
  svg.setAttribute("viewBox","0 0 "+svgW+" "+stageH);
  svg.setAttribute("width",svgW);
@@ -775,7 +777,7 @@ function renderScore(){
 function updateScorePosition(){
  const q=currentQ(),stage=document.querySelector(".score-stage");
  const playheadX=(stage.clientWidth||window.innerWidth||390)*0.42;
- document.getElementById("scoreWorld").setAttribute("transform","translate("+(playheadX-q*PXQ)+",0)");
+ document.getElementById("scoreWorld").setAttribute("transform","translate("+(playheadX-q*SCORE_PXQ)+",0)");
  let mi=0; for(let i=0;i<DATA.measureStarts.length;i++){ if(DATA.measureStarts[i].q<=q) mi=i; else break; }
  const m=DATA.measureStarts[mi];
  document.getElementById("measureTag").textContent=m.label==="전주"?"전주":m.label+"마디"+(m.pass===2?" · 반복":"");
